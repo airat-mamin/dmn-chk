@@ -29,7 +29,6 @@ from pathlib import Path
 
 import httpx
 
-
 DOH_URL = "https://cloudflare-dns.com/dns-query"
 WHOIS_HOST = "whois.tcinet.ru"
 WHOIS_PORT = 43
