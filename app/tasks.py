@@ -15,7 +15,7 @@ import structlog
 from redis.asyncio import Redis
 
 from .config import settings
-from .models import CheckResult, TaskStatus
+from .models import CheckResult, DomainStatus, Source, TaskStatus
 from .pipeline import Pipeline
 
 log = structlog.get_logger(__name__)
@@ -29,6 +29,9 @@ class TaskManager:
     def __init__(self, redis: Redis, pipeline: Pipeline) -> None:
         self.redis = redis
         self.pipeline = pipeline
+        # Hold strong references to background tasks — asyncio only keeps weak
+        # references, so without this the GC can kill a running batch mid-flight.
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     async def create(self, domains: list[str]) -> str:
         task_id = uuid.uuid4().hex
@@ -42,7 +45,9 @@ class TaskManager:
         }
         await self.redis.hset(TASK_META_PREFIX + task_id, mapping=meta)
         await self.redis.expire(TASK_META_PREFIX + task_id, TASK_TTL)
-        asyncio.create_task(self._run(task_id, domains))
+        task = asyncio.create_task(self._run(task_id, domains), name=f"batch:{task_id}")
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
         return task_id
 
     async def _run(self, task_id: str, domains: list[str]) -> None:
@@ -56,8 +61,8 @@ class TaskManager:
                     log.exception("task_domain_failed", task_id=task_id, domain=d, error=str(exc))
                     result = CheckResult(
                         domain=d,
-                        status="error",  # type: ignore[arg-type]
-                        source="whois",  # type: ignore[arg-type]
+                        status=DomainStatus.ERROR,
+                        source=Source.RDAP,
                         checked_at=datetime.now(UTC),
                         metadata={"reason": f"pipeline_exception:{type(exc).__name__}"},
                     )

@@ -43,7 +43,8 @@ class Pipeline:
         if not fresh:
             cached = await self.cache.get(domain)
             if cached is not None:
-                cached.source = Source.CACHE
+                # cache.get already sets cache_hit=True; keep original `source`
+                # so callers can see who actually made the decision.
                 return cached
 
         async with self._inflight_lock:

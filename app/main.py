@@ -1,6 +1,7 @@
 """FastAPI entrypoint."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -63,7 +64,7 @@ def get_tasks() -> TaskManager:
 @app.get("/healthz")
 async def healthz() -> dict[str, str]:
     try:
-        await app.state.redis.ping()
+        await asyncio.wait_for(app.state.redis.ping(), timeout=1.0)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"redis_unreachable:{exc}") from exc
     return {"status": "ok"}
