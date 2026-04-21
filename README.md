@@ -34,6 +34,25 @@
 
 ---
 
+## Сканер трёхбуквенных `.ru` доменов
+
+Быстрый CLI-скрипт для оригинальной задачи: найти все свободные трёхбуквенные `.ru`.
+
+```bash
+python scripts/scan_3letter.py            # a-z, 17576 доменов, 15–30 мин
+python scripts/scan_3letter.py --alphabet abcdefghijklmnopqrstuvwxyz0123456789  # с цифрами, 46656
+python scripts/scan_3letter.py --limit 200 --out-dir /tmp/scan  # smoke-тест
+```
+
+Логика (в обход пайплайна, так как `.ru` **нет** в IANA RDAP bootstrap — `rdap.nic.ru` отвечает только за домены NIC.RU):
+
+1. **Phase 1 — DoH** (Cloudflare, ~50 rps): классифицирует все кандидаты как `HAS_RECORDS` / `NXDOMAIN` / `NO_RECORDS` / `ERROR`.
+2. **Phase 2 — WHOIS** (`whois.tcinet.ru`, TCP/43, авторитет для `.ru`): подтверждает только `NXDOMAIN`/`NO_RECORDS`/`ERROR`; парсит `No entries found` vs `state: REGISTERED...`.
+
+Выход: `scan_3letter_doh.csv`, `scan_3letter_free.csv`, `scan_3letter_full.csv`.
+
+---
+
 ## Локальный запуск (docker-compose)
 
 ```bash
